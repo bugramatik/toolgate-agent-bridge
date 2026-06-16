@@ -1,0 +1,52 @@
+# Incident and on-call tools. Every entry is validated against ToolSpec at startup.
+tools:
+  - name: incidents.list_open
+    description: List incidents that are currently open, newest first.
+    method: GET
+    url: https://incidents.example.com/v1/incidents
+    scopes: [incidents:read]
+    timeout_s: 6
+    retries: 2
+    params:
+      type: object
+      properties:
+        severity:
+          type: string
+          enum: [sev1, sev2, sev3, sev4]
+          description: Only return incidents of this severity.
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      required: []
+
+  - name: incidents.get
+    description: Fetch one incident by its identifier, including the current status.
+    method: GET
+    url: https://incidents.example.com/v1/incidents/{incident_id}
+    scopes: [incidents:read]
+    timeout_s: 6
+    retries: 1
+    params:
+      type: object
+      properties:
+        incident_id:
+          type: string
+          description: Incident identifier, for example INC-4821.
+      required: [incident_id]
+
+  - name: oncall.who_is_on_call
+    description: Return the primary and secondary responder for a rotation right now.
+    method: GET
+    url: https://incidents.example.com/v1/rotations/{rotation}/oncall
+    scopes: [oncall:read]
+    timeout_s: 4
+    retries: 2
+    params:
+      type: object
+      properties:
+        rotation:
+          type: string
+          description: Rotation name, for example platform-primary.
+      required: [rotation]

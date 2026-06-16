@@ -1,0 +1,94 @@
+# Service catalog and deploy tools. Each entry becomes one agent-callable tool.
+# URLs are relative to TOOLGATE_UPSTREAM_BASE_URL.
+
+- name: catalog_search_services
+  description: >-
+    Search the service catalog by name, owner or tag and return matching services
+    with their tier, owner team and current health status.
+  method: GET
+  url: /api/catalog/services
+  scopes: [catalog:read]
+  timeout_s: 4
+  retries: 1
+  params:
+    type: object
+    properties:
+      query:
+        type: string
+        description: Free text matched against service name, owner and tags.
+      tier:
+        type: string
+        enum: [1, 2, 3]
+        description: Only return services of this criticality tier.
+      limit:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 10
+    required: [query]
+
+- name: catalog_get_service
+  description: >-
+    Fetch one service by its slug, including its owning team, on-call rotation,
+    repository link and the dashboards attached to it.
+  method: GET
+  url: /api/catalog/services/{slug}
+  scopes: [catalog:read]
+  timeout_s: 4
+  retries: 1
+  params:
+    type: object
+    properties:
+      slug:
+        type: string
+        description: Stable identifier of the service, for example payments-api.
+    required: [slug]
+
+- name: catalog_list_deploys
+  description: >-
+    List recent deploys for a service, newest first, with the version, the commit
+    short hash, the environment and the result of each deploy.
+  method: GET
+  url: /api/catalog/services/{slug}/deploys
+  scopes: [catalog:read, deploys:read]
+  timeout_s: 5
+  retries: 2
+  params:
+    type: object
+    properties:
+      slug:
+        type: string
+        description: Stable identifier of the service.
+      environment:
+        type: string
+        enum: [staging, production]
+        default: production
+      limit:
+        type: integer
+        minimum: 1
+        maximum: 30
+        default: 5
+    required: [slug]
+
+- name: catalog_rollback_deploy
+  description: >-
+    Roll a service back to a previous version. This changes production, so it is
+    only offered to callers holding the deploys:write scope.
+  method: POST
+  url: /api/catalog/services/{slug}/rollback
+  scopes: [catalog:read, deploys:write]
+  timeout_s: 20
+  retries: 0
+  params:
+    type: object
+    properties:
+      slug:
+        type: string
+        description: Stable identifier of the service.
+      version:
+        type: string
+        description: Version to restore, as listed by catalog_list_deploys.
+      reason:
+        type: string
+        description: Short reason recorded in the deploy log.
+    required: [slug, version, reason]

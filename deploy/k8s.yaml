@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: toolgate-config
+  labels:
+    app: toolgate
+    app.kubernetes.io/part-of: toolgate-agent-bridge
+data:
+  TOOLGATE_TOOL_DIR: "/app/tools"
+  TOOLGATE_CALL_TIMEOUT_S: "8"
+  TOOLGATE_MAX_RETRIES: "2"
+  TOOLGATE_OPENAI_MODEL: "gpt-4o-mini"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: toolgate
+  labels:
+    app: toolgate
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: toolgate
+  template:
+    metadata:
+      labels:
+        app: toolgate
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: toolgate
+          image: ghcr.io/example/toolgate:0.3.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: toolgate-config
+          env:
+            - name: TOOLGATE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: toolgate-secrets
+                  key: database-url
+            - name: TOOLGATE_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: toolgate-secrets
+                  key: api-token
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: toolgate
+  labels:
+    app: toolgate
+spec:
+  type: ClusterIP
+  selector:
+    app: toolgate
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
